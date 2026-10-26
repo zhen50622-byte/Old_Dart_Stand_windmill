@@ -5,9 +5,11 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "DM_Motor_task.h"
+volatile float DM_3519_position = 0.0f;
+static uint8_t ch3_flag_last = 1;          // ch3摇杆上一次的状态
 void DM_Motor_TaskStart(void *argument)
 {
-    DM_Motor_Init(&hcan2,0x00,POSITION); //调试时先注释
+    DM_Motor_Init(&hcan2,0x00,POSITION);
     DM_Motor_Init(&hcan2,0x01,POSITION);
 
     for (;;)
@@ -16,7 +18,7 @@ void DM_Motor_TaskStart(void *argument)
         {
             if (RC_CtrlData.rc.s1 == 1)
             {
-                DM_Motor_Init(&hcan2,0x02,POSITION);//初始化2325
+                DM_Motor_Init(&hcan2,0x02,POSITION);//初始化2325 用调参板调参时
             }
             else
             {
@@ -27,18 +29,31 @@ void DM_Motor_TaskStart(void *argument)
         {
             //三为手动挡发镖
             flag_one_step = 0;//自动挡中途切回手动挡位 重置状态
-            if (flag==0){
+            if (flag==0 && flag_3519_back != 1){
 
-                //DM_Motor_Setposition(&hcan2,0x00,POSITION,(35.0f*3.1415926f),4.0f*3.1415926f);//右,正方向
-                //DM_Motor_Setposition(&hcan2,0x01,POSITION,-(35.0f*3.1415926f),4.0f*3.1415926f);//左，正方向
+                DM_Motor_Setposition(&hcan2,0x00,POSITION,(750.0f),18.0f);//右,正方向 680 750测试用
+                DM_Motor_Setposition(&hcan2,0x01,POSITION,-(750.0f),18.0f);//左，正方向
+                if (ch3_flag_last != 0)
+                {
+                    ////DM_Motor_Setposition(&hcan2,0x00,POSITION,(35.0f*3.1415926f),4.0f*3.1415926f);//右,正方向
+                    ////DM_Motor_Setposition(&hcan2,0x01,POSITION,-(35.0f*3.1415926f),4.0f*3.1415926f);//左，正方向
 
-                DM_Motor_Setposition(&hcan2,0x00,POSITION,(800.0f),18.0f);//右,正方向
-                DM_Motor_Setposition(&hcan2,0x01,POSITION,-(800.0f),18.0f);//左，正方向
+                    if (Windmill_flag >= 3)
+                    {
+                        Windmill_flag = 1;
+                    }
+                    else
+                    {
+                        Windmill_flag++;//大风车标志位
+                    }
+                }
+
             }
-            else if (flag==1)
+            else if (flag == 1)
             {
                 DM_Motor_Setposition(&hcan2,0x00,POSITION,0,18.0f);
                 DM_Motor_Setposition(&hcan2,0x01,POSITION,0,18.0f);
+                flag_3519_back = 0;//复位标志位
             }
             DM_Motor_Setspeed(&hcan2,0x02,SPEED,((RC_CtrlData.rc.ch0-1024.0f)/660.0f)*3.0f*3.1415926f);//动态设置板机电机位置
             //左，后退/右，前进
@@ -73,8 +88,8 @@ void DM_Motor_TaskStart(void *argument)
                     DM_Motor_Setposition(&hcan2,0x01,POSITION,0,18.0f);
                     break;
                 case 1://电机向下
-                    DM_Motor_Setposition(&hcan2,0x00,POSITION,(800.0f),18.0f);//右,正方向
-                    DM_Motor_Setposition(&hcan2,0x01,POSITION,-(800.0f),18.0f);//左，正方向
+                    DM_Motor_Setposition(&hcan2,0x00,POSITION,(750.0f),18.0f);//右,正方向
+                    DM_Motor_Setposition(&hcan2,0x01,POSITION,-(750.0f),18.0f);//左，正方向
                     if (osKernelGetTickCount()-t0>=3000u)
                     {
                         flag_one_step = 2;
@@ -166,9 +181,10 @@ void DM_Motor_TaskStart(void *argument)
 
         }
 
+        ch3_flag_last = flag;
         s2_last = RC_CtrlData.rc.s2;
         s1_last = RC_CtrlData.rc.s1;
-        osDelay(1);
+        osDelay(2);
     }
 
 }

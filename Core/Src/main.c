@@ -28,9 +28,11 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include"DM_Motor.h"
-#include"drv_can.h"
-#include"RC_remoto_control.h"
-#include"X_V2.h"
+#include "drv_can.h"
+#include "RC_remoto_control.h"
+#include "X_V2.h"
+#include "PID.h"
+#define PI 3.1415926
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,12 +57,14 @@
 int flag=2;//达妙电机标志位,默认上电不动
 RC_Ctl_t RC_CtrlData;
 //uint8_t RxData[2][18]={0};//接收遥控器数据的数组，双
-uint8_t RxData[18]={0};//接收遥控器数据的数,单缓冲区
-int flag_one_step =0;//此为全局变量
-uint32_t t0=0;
+uint8_t RxData[18] = {0};//接收遥控器数据的数,单缓冲区
+int flag_one_step = 0;//此为全局变量
+uint32_t t0 = 0;
 uint8_t s2_last = 0;
 uint8_t s1_last = 0;
-
+extern PID_Struct DJI_2006_speed;
+extern PID_Struct DJI_2006_position;
+extern uint8_t Windmill_flag;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -180,18 +184,55 @@ int main(void)
   MX_CAN2_Init();
   MX_TIM4_Init();
   MX_USART1_UART_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
+  //舵机初始化代码
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);//扳机舵机开启
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_1);//大风车舵机1初始化
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_2);//大风车舵机2初始化
+  HAL_TIM_PWM_Start(&htim5, TIM_CHANNEL_3);//大风车舵机3初始化
+  //初始化大风车舵机上电实际角度 具体角度看实际来调
   __HAL_TIM_SetCompare(&htim4, TIM_CHANNEL_1,780.0f);//初始未上膛
+  __HAL_TIM_SetCompare(&htim5, TIM_CHANNEL_1,320.0f);//初始未上膛//200.0放飞镖 320夹飞镖
+  __HAL_TIM_SetCompare(&htim5, TIM_CHANNEL_2,600.0f);//初始未上膛//750放飞镖 600夹紧
+  __HAL_TIM_SetCompare(&htim5, TIM_CHANNEL_3,400.0f);//初始未上膛//630放飞镖 400夹紧  //
+
+  //遥控器串口接收代码
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, RxData, 18);//开启串口
-  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);//关掉有关DMA的接收一半数据就触发的中断
+
+  CAN_Filter_Mask_Config(&hcan2,CAN_FILTER(16)|CAN_FIFO_1|CAN_STDID|CAN_DATA_TYPE,0x01,0x00);//配置滤波器 接收3519发来的数据
   CAN_Init(&hcan2,User_CANCallback);//初始化CN2 使用达妙电机
-  CAN_Filter_Mask_Config(&hcan2,CAN_FILTER(16)|CAN_FIFO_1|CAN_STDID|CAN_DATA_TYPE,0x01,0x00);//配置滤波器
-  USER_CAN1_Filter_Init();																	// 初始化CAN滤波器
-  if(HAL_CAN_Start(&hcan1) != HAL_OK) { Error_Handler(); }	// 启动CAN控制器
-  if(HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) { Error_Handler(); }	// 使能CAN控制器接收中断
-  HAL_Delay(500);//上电500ms等初始化完成
-  //X_V2_Reset_CurPos_To_Zero(8);//上电 设置步进电机的当前位置为0点
+
+
+
+  // //步进电机相关代码 并且初始化CAN1
+  // USER_CAN1_Filter_Init();																	// 初始化CAN滤波器
+  // if(HAL_CAN_Start(&hcan1) != HAL_OK) { Error_Handler(); }	// 启动CAN控制器
+  // if(HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK) { Error_Handler(); }	// 使能CAN控制器接收中断
+  CAN_Filter_Mask_Config(&hcan1,CAN_FILTER(1)|CAN_FIFO_0|CAN_STDID|CAN_DATA_TYPE,0x41,0x00);//配置滤波器//接收4310发来的数据
+  CAN_Filter_Mask_Config(&hcan1,CAN_FILTER(2)|CAN_FIFO_0|CAN_STDID|CAN_DATA_TYPE,0x202,0x00);//配置滤波器//接收4310发来的数据
+  CAN_Init(&hcan1,User_CANCallback);//初始化CN2 使用达妙电机
+
+
+   //初始化4310电机,变成位置模式
+   DM_Motor_Init(&hcan1,0x51,POSITION);
+   DM_Motor_Setposition(&hcan1,0x51,POSITION,0.0f,10.0f);//先让达妙电机上电回到0点
+   HAL_Delay(1200);
+   DM_Motor_Setposition(&hcan1,0x51,POSITION,-(PI/3.0f),10.0f);//然后让电机转到60°的位置
+   HAL_Delay(500);
+
+  // HAL_Delay(500);//上电500ms等初始化完成
+  //  //初始化大疆电机2006
+  //  PID_Init(&DJI_2006_speed);
+  //  PID_Init(&DJI_2006_position);
+
+
+
+
+
+
+  ////X_V2_Reset_CurPos_To_Zero(8);//上电 设置步进电机的当前位置为0点 0点学长已经设置过了
   /* USER CODE END 2 */
 
   /* Init scheduler */

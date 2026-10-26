@@ -15,4 +15,7 @@ extern  int flag_one_step;
 extern  uint32_t t0;
 extern  uint8_t s2_last ;
 extern  uint8_t s1_last ;
+extern volatile float DM_3519_position;
+extern uint8_t Windmill_flag;
+extern uint8_t flag_3519_back;
 #endif //OLD_DART_STAND_DM_MOTOR_TASK_H

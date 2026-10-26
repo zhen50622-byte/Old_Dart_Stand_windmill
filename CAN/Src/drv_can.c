@@ -13,6 +13,7 @@
 
 #include "drv_can.h"
 #include "darts.h"
+#include "Windmill_2006_task.h"
 /* Private macros ------------------------------------------------------------*/
 
 /* Private types -------------------------------------------------------------*/
@@ -22,6 +23,13 @@
 Struct_CAN_Manage_Object CAN1_Manage_Object = {0};
 Struct_CAN_Manage_Object CAN2_Manage_Object = {0};
 
+// 达妙 DM-J4310-2EC 电机参数（反馈帧定点数线性映射用）
+#define PMAX_4310  25.0f    // 位置范围 上位机显示为25.0f
+#define VMAX_4310  30.0f   // 速度范围 ±30.0f
+#define PMAX_3519  12.5f
+#define VMAX_3519  200.0f
+extern volatile float DM_4310_position;
+extern volatile float DM_3519_position;
 // CAN通信发送缓冲区
 uint8_t CAN1_0x1ff_Tx_Data[8];
 uint8_t CAN1_0x200_Tx_Data[8];
@@ -36,7 +44,10 @@ uint8_t CAN1_0x220_Tx_Data[8];
 /* Private function declarations ---------------------------------------------*/
 
 /* function prototypes -------------------------------------------------------*/
-
+static float uint_to_float(int x_int, float x_min, float x_max, int bits)
+{
+    return (float)x_int * (x_max - x_min) / (float)((1 << bits) - 1) + x_min;
+}//解析达妙电机位置函数数
 /**
  * @brief 初始化CAN总线
  *
@@ -180,26 +191,37 @@ void TIM_CAN_PeriodElapsedCallback()
  */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)//
 {
-    //接收缓冲区
-    static Struct_CAN_Rx_Buffer can_rx_buffer;
+    CAN_RxHeaderTypeDef header;//定义
+    uint8_t Receive_data[8];
+    if (hcan->Instance != CAN1)
+        return;//确保是CAN2,关于如何让数据在CAN2上，将STM32接到A板CAN2就可以了，关于接收电机数据可以配置FIFO接收电机数据，但是要注意掩配置，否者全部数据都进进FIFO0
 
-    //选择回调函数
-    if (hcan->Instance == CAN1)
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &header, Receive_data) != HAL_OK)
+        return;//确保成功解析
+
+    if (header.IDE != CAN_ID_STD)   return;//确保标准帧
+    if (header.RTR != CAN_RTR_DATA) return;//确保数据帧
+    if (header.DLC != 8)            return;//确保数据长度为8字节
+
+    switch (header.StdId)
     {
-        HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO0, &can_rx_buffer.Header, can_rx_buffer.Data);
-        if (CAN1_Manage_Object.Callback_Function != NULL)
-        {
-            CAN1_Manage_Object.Callback_Function(&can_rx_buffer);
-        }
+        case 0x41 ://此为4310电机数据的处理 可以暂时不处理数据 让4310旋转的同时 2006同时下转
+            {
+                // POS: D[1]=POS[15:8], D[2]=POS[7:0]，16位无符号定点 -> 线性映射到 [-PMAX, +PMAX] rad
+                uint16_t pos_raw_4310 = ((uint16_t)Receive_data[1] << 8) | Receive_data[2];
+                DM_4310_position = uint_to_float((int)pos_raw_4310, -PMAX_4310, PMAX_4310, 16);
+                break;
+            }
+        case 0x202 ://此为2006电机数据处理
+            {
+                //这里ID得看2006的实际ID
+                actuall_speed_2006_raw = (float)((int16_t)(Receive_data[2] << 8 | Receive_data[3]));
+                actuall_position_2006_raw = (uint16_t)((Receive_data[0]<<8) | Receive_data[1]);//只保存原始角度
+                flag_FIF0 = 1;
+                break;
+            }
     }
-    else if (hcan->Instance == CAN2)
-    {
-        HAL_CAN_GetRxMessage(hcan, CAN_FILTER_FIFO0, &can_rx_buffer.Header, can_rx_buffer.Data);
-        if (CAN2_Manage_Object.Callback_Function != NULL)
-        {
-            CAN2_Manage_Object.Callback_Function(&can_rx_buffer);
-        }
-    }
+
 }//步进电机会用到FIFO0中断 将该库函数关于FIO0的中断重写
 
 void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -207,7 +229,7 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
     CAN_RxHeaderTypeDef header;//定义
     uint8_t Receive_data[8];
     if (hcan->Instance != CAN2)
-        return;//确保是CAN2
+        return;//确保是CAN2,关于如何让数据在CAN2上，将STM32接到A板CAN2就可以了，关于接收电机数据可以配置FIFO接收电机数据，但是要注意掩配置，否者全部数据都进进FIFO0
 
     if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &header, Receive_data) != HAL_OK)
         return;//确保成功解析
@@ -274,6 +296,28 @@ void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
             Dart_ID_state = 0x14;
 
             break;
+        // case 0x41 ://此为4310电机数据的处理
+        //     {
+        //         // POS: D[1]=POS[15:8], D[2]=POS[7:0]，16位无符号定点 -> 线性映射到 [-PMAX, +PMAX] rad
+        //         uint16_t pos_raw_4310 = ((uint16_t)Receive_data[1] << 8) | Receive_data[2];
+        //         DM_4310_position = uint_to_float((int)pos_raw_4310, -PMAX_4310, PMAX_4310, 16);
+        //         break;
+        //     }
+        // // case 0x00 ://此为3519电机数据的处理 3519和大风车的配合暂时延时处理
+        // //     {
+        // //         // POS: D[1]=POS[15:8], D[2]=POS[7:0]，16位无符号定点 -> 线性映射到 [-PMAX, +PMAX] rad
+        // //         uint16_t pos_raw_3519 = ((uint16_t)Receive_data[1] << 8) | Receive_data[2];
+        // //         DM_3519_position = uint_to_float((int)pos_raw_3519, -PMAX_3519, PMAX_3519, 16);
+        // //         break;
+        // //     }
+        // case 0x202 ://此为2006电机数据处理
+        //     {
+        //         //这里ID得看2006的实际ID
+        //         actuall_speed_2006_raw = (float)((int16_t)(Receive_data[2] << 8 | Receive_data[3]));
+        //         actuall_position_2006_raw = (uint16_t)((Receive_data[0]<<8) | Receive_data[1]);//只保存原始角度
+        //         flag_FIF0 = 1;
+        //         break;
+        //     }
         default:
             //do nothing
             break;

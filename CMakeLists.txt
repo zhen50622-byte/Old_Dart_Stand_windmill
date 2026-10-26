@@ -41,7 +41,11 @@ add_executable(${CMAKE_PROJECT_NAME}
         My_Other/Inc/darts.h
         My_Other/Src/darts.c
         FR_tasks/Inc/Motor_return_zero.h
-        FR_tasks/Src/Motor_return_zero.c)
+        FR_tasks/Src/Motor_return_zero.c
+        FR_tasks/Inc/Windmill_2006_task.h
+        FR_tasks/Src/Windmill_4310_task.c
+        FR_tasks/Inc/Windmill_4310_task.h
+        FR_tasks/Src/Windmill_2006_task.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -62,6 +66,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         BJ_Motor/Src/Can_BJ.c
         BJ_Motor/Src/X_V2.c
         My_Other/Src/darts.c
+        FR_tasks/Src/Windmill_2006_task.c
+        FR_tasks/Src/Windmill_4310_task.c
+        PID/Src/PID.c
 )
 
 # Add include paths
@@ -73,6 +80,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         Others/Inc
         BJ_Motor/Inc
         My_Other/Inc
+        PID/Inc
 )
 
 # Add project symbols (macros)

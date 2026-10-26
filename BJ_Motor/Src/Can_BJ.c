@@ -25,8 +25,9 @@ void USER_CAN1_Filter_Init(void)
 	sFilterConfig.FilterMaskIdLow = im_l;
 	sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0;//步进电机进FIFO0中断
 	sFilterConfig.FilterActivation = ENABLE;
-	sFilterConfig.SlaveStartFilterBank = 0;
-	
+	//sFilterConfig.SlaveStartFilterBank = 0;
+	sFilterConfig.SlaveStartFilterBank = 14;
+
 	while(HAL_CAN_ConfigFilter(&hcan1, &sFilterConfig) != HAL_OK);
 }
 
@@ -55,7 +56,11 @@ void can_SendCmd(__IO uint8_t *cmd, uint8_t len)
 			for(l=0; l < 7; l++,i++) { can.txData[l + 1] = cmd[i + 2]; } can.CAN_TxMsg.DLC = 8;
 		}
 
-		while(HAL_CAN_AddTxMessage((&hcan1), (CAN_TxHeaderTypeDef *)(&can.CAN_TxMsg), (uint8_t *)(&can.txData), (&TxMailbox)) != HAL_OK);
+		//uint32_t t_start = HAL_GetTick();
+		//while(HAL_CAN_AddTxMessage((&hcan1), (CAN_TxHeaderTypeDef *)(&can.CAN_TxMsg), (uint8_t *)(&can.txData), (&TxMailbox)) != HAL_OK)
+		//{
+		//	if (HAL_GetTick() - t_start > 10U) break;   // 10ms 超时，别死等
+		//}
 
 		++packNum;
 	}

@@ -75,6 +75,20 @@ const osThreadAttr_t Motor_return_t0_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal1,
 };
+/* Definitions for Windmill_4310 */
+osThreadId_t Windmill_4310Handle;
+const osThreadAttr_t Windmill_4310_attributes = {
+  .name = "Windmill_4310",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for Windmill_2006 */
+osThreadId_t Windmill_2006Handle;
+const osThreadAttr_t Windmill_2006_attributes = {
+  .name = "Windmill_2006",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal1,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -85,6 +99,8 @@ void StartDefaultTask(void *argument);
 void DM_Motor_TaskStart(void *argument);
 void Start_BJ_Task(void *argument);
 void Start_Motor_return_t0(void *argument);
+void Windmill_4310_Start(void *argument);
+void Windmill_2006_Start(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -126,6 +142,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of Motor_return_t0 */
   Motor_return_t0Handle = osThreadNew(Start_Motor_return_t0, NULL, &Motor_return_t0_attributes);
+
+  /* creation of Windmill_4310 */
+  Windmill_4310Handle = osThreadNew(Windmill_4310_Start, NULL, &Windmill_4310_attributes);
+
+  /* creation of Windmill_2006 */
+  Windmill_2006Handle = osThreadNew(Windmill_2006_Start, NULL, &Windmill_2006_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -207,6 +229,42 @@ __weak void Start_Motor_return_t0(void *argument)
     osDelay(1);
   }
   /* USER CODE END Start_Motor_return_t0 */
+}
+
+/* USER CODE BEGIN Header_Windmill_4310_Start */
+/**
+* @brief Function implementing the Windmill_4310 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Windmill_4310_Start */
+__weak void Windmill_4310_Start(void *argument)
+{
+  /* USER CODE BEGIN Windmill_4310_Start */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END Windmill_4310_Start */
+}
+
+/* USER CODE BEGIN Header_Windmill_2006_Start */
+/**
+* @brief Function implementing the Windmill_2006 thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Windmill_2006_Start */
+__weak void Windmill_2006_Start(void *argument)
+{
+  /* USER CODE BEGIN Windmill_2006_Start */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END Windmill_2006_Start */
 }
 
 /* Private application code --------------------------------------------------*/
